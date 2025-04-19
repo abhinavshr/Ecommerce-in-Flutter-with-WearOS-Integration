@@ -1,0 +1,2 @@
+D:/Application Trends/provider_sample/android/app/.cxx/Debug/2w1k6m3y/armeabi-v7a/CMakeFiles/edit_cache.dir
+D:/Application Trends/provider_sample/android/app/.cxx/Debug/2w1k6m3y/armeabi-v7a/CMakeFiles/rebuild_cache.dir

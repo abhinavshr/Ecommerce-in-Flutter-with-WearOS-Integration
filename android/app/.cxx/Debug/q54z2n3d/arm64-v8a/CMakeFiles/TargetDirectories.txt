@@ -1,0 +1,2 @@
+D:/Application Trends/provider_sample/android/app/.cxx/Debug/q54z2n3d/arm64-v8a/CMakeFiles/edit_cache.dir
+D:/Application Trends/provider_sample/android/app/.cxx/Debug/q54z2n3d/arm64-v8a/CMakeFiles/rebuild_cache.dir
