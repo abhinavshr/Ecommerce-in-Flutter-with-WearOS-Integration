@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:provider_sample/utils/service/encrypt_decrypt_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart'; // Import the cached network image package
+
 import '../providers/product_provider.dart';
 import '../providers/cart_provider.dart';
 import '../models/product.dart';
 import 'cart_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -16,6 +19,7 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   bool _isLoading = true;
+  final _encryptionService = EncryptDecryptService();
 
   @override
   void initState() {
@@ -25,25 +29,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Future<void> loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? cachedData = prefs.getString('cachedProducts');
+    final String? encryptedData = prefs.getString('cachedProducts');
 
-    if (cachedData != null) {
-      final List<dynamic> jsonData = jsonDecode(cachedData);
-      final List<Product> cachedProducts =
-      jsonData.map((item) => Product.fromJson(item)).toList();
+    if (encryptedData != null) {
+      try {
+        final decryptedData = _encryptionService.decryptData(encryptedData);
+        final List<dynamic> jsonData = jsonDecode(decryptedData);
+        final List<Product> cachedProducts =
+        jsonData.map((item) => Product.fromJson(item)).toList();
 
-      Provider.of<ProductProvider>(context, listen: false)
-          .setProducts(cachedProducts);
+        Provider.of<ProductProvider>(context, listen: false)
+            .setProducts(cachedProducts);
+      } catch (e) {
+        await Provider.of<ProductProvider>(context, listen: false)
+            .fetchProducts();
+      }
     } else {
       await Provider.of<ProductProvider>(context, listen: false).fetchProducts();
-
-      final products =
-          Provider.of<ProductProvider>(context, listen: false).products;
-
-      final List<Map<String, dynamic>> jsonList =
-      products.map((product) => product.toJson()).toList();
-      await prefs.setString('cachedProducts', jsonEncode(jsonList));
     }
+
+    final products =
+        Provider.of<ProductProvider>(context, listen: false).products;
+
+    final List<Map<String, dynamic>> jsonList =
+    products.map((product) => product.toJson()).toList();
+
+    final jsonString = jsonEncode(jsonList);
+    final encryptedString = _encryptionService.encryptData(jsonString);
+    await prefs.setString('cachedProducts', encryptedString);
 
     setState(() {
       _isLoading = false;
@@ -88,27 +101,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
-              itemCount: products.length,
-              itemBuilder: (ctx, index) {
-                final Product product = products[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  child: ListTile(
-                    leading: Image.network(product.thumbnail,
-                        width: 60, fit: BoxFit.cover),
-                    title: Text(product.title),
-                    subtitle: Text(product.description,
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
-                    trailing: ElevatedButton(
-                      onPressed: () {
-                        cart.addToCart(product);
-                      },
-                      child: const Text("Add to Cart"),
-                    ),
-                  ),
-                );
-              },
+        itemCount: products.length,
+        itemBuilder: (ctx, index) {
+          final Product product = products[index];
+          return Card(
+            margin: const EdgeInsets.all(8),
+            child: ListTile(
+              leading: SizedBox(
+                width: 60,
+                height: 60,
+                child: CachedNetworkImage(
+                  imageUrl: product.thumbnail,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) =>
+                  const CircularProgressIndicator(),
+                  errorWidget: (context, url, error) => const Icon(Icons.error),
+                ),
+              ),
+              title: Text(product.title),
+              subtitle: Text(
+                product.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: ElevatedButton(
+                onPressed: () {
+                  cart.addToCart(product);
+                },
+                child: const Text("Add to Cart"),
+              ),
             ),
+          );
+        },
+      ),
     );
   }
 }
