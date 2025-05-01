@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider_sample/screens/watch_cart_list_screen.dart';
 import 'package:watch_connectivity/watch_connectivity.dart';
 import 'package:wear_plus/wear_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,27 +33,35 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
 
   void listenToIncomingMessages() {
     WatchConnectivity().messageStream.listen((message) async {
+      debugPrint("[WatchCartSummary] Received message: $message");
+
       if (message.containsKey('totalItems') && message.containsKey('totalPrice')) {
-        if (message['totalItems'] is int && message['totalPrice'] is String) {
+        final totalItemsValue = message['totalItems'];
+        final totalPriceValue = message['totalPrice'];
+
+        if (totalItemsValue is int && totalPriceValue is String) {
           if (mounted) {
             setState(() {
-              totalItems = message['totalItems'];
-              totalPrice = message['totalPrice'];
+              totalItems = totalItemsValue;
+              totalPrice = totalPriceValue;
               isLoading = false;
             });
             showCartNotificationOnWatch(totalItems, totalPrice);
           }
 
           final prefs = await SharedPreferences.getInstance();
-          final encrypted = _encryptionService.encryptData(jsonEncode(message));
+          final encrypted = _encryptionService.encryptData(jsonEncode({
+            'totalItems': totalItemsValue,
+            'totalPrice': totalPriceValue,
+          }));
           await prefs.setString('cartSummary', encrypted);
 
-          debugPrint("[WatchCartSummary] Saved encrypted cart summary to watch storage.");
+          debugPrint("[WatchCartSummary] Saved encrypted cart summary to storage.");
         } else {
-          debugPrint("[WatchCartSummary]  Invalid data types in received message.");
+          debugPrint("[WatchCartSummary] Invalid types: totalItems=${totalItemsValue.runtimeType}, totalPrice=${totalPriceValue.runtimeType}");
         }
       } else {
-        debugPrint("[WatchCartSummary]  Incomplete message received.");
+        debugPrint("[WatchCartSummary] Incomplete or unrelated message: $message");
       }
     });
   }
@@ -61,13 +70,13 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
     final prefs = await SharedPreferences.getInstance();
     final encrypted = prefs.getString('cartSummary');
 
-    debugPrint("[WatchCartSummary] 🔍 Attempting to load cart summary from prefs...");
+    debugPrint("[WatchCartSummary] Attempting to load cart summary from prefs...");
     debugPrint("[WatchCartSummary] Encrypted summary: $encrypted");
 
     if (encrypted != null) {
       try {
         final decrypted = _encryptionService.decryptData(encrypted);
-        debugPrint("[WatchCartSummary]  Decrypted summary: $decrypted");
+        debugPrint("[WatchCartSummary] Decrypted summary: $decrypted");
         final data = jsonDecode(decrypted);
 
         if (mounted) {
@@ -78,7 +87,7 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
           });
         }
       } catch (e) {
-        debugPrint('[WatchCartSummary]  Decryption or parsing failed: $e');
+        debugPrint('[WatchCartSummary] Decryption or parsing failed: $e');
         if (mounted) {
           setState(() {
             isLoading = false;
@@ -86,7 +95,7 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
         }
       }
     } else {
-      debugPrint("[WatchCartSummary]  No cart summary found in SharedPreferences.");
+      debugPrint("[WatchCartSummary] No cart summary found in SharedPreferences.");
       if (mounted) {
         setState(() {
           isLoading = false;
@@ -109,12 +118,11 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
 
     await flutterLocalNotificationsPlugin.show(
       0,
-      '🛒 Cart Updated',
+      'Cart Updated',
       '$items items totaling \$$price in your cart.',
       details,
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +147,18 @@ class _WatchCartSummaryScreenState extends State<WatchCartSummaryScreen> {
               Text(
                 "Total: \$$totalPrice",
                 style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WatchCartListScreen(),
+                    ),
+                  );
+                },
+                child: const Text("Cart List"),
               ),
             ],
           ),
